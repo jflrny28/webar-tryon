@@ -1,0 +1,41 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Camera Test</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body { margin:0; background:#000; color:#0f0; font:14px monospace; }
+    #log { padding:8px; }
+    video { width:100vw; height:calc(100vh - 60px); object-fit:cover; }
+    button { margin:8px; padding:10px 16px; }
+  </style>
+</head>
+<body>
+  <div id="log">Ready. Tap "Start Camera".</div>
+  <button id="btn">Start Camera</button>
+  <video id="v" playsinline autoplay muted></video>
+
+  <script>
+    const log = (m)=>document.getElementById('log').textContent = m;
+    const btn = document.getElementById('btn');
+    const v = document.getElementById('v');
+
+    btn.addEventListener('click', async ()=>{
+      try {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          log('getUserMedia not available'); return;
+        }
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: 'environment' } },
+          audio: false
+        });
+        v.srcObject = stream;
+        log('Camera: SUCCESS');
+      } catch (e) {
+        log('Camera ERROR: ' + (e && e.message ? e.message : e));
+      }
+    });
+  </script>
+</body>
+</html>
