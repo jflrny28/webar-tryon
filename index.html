@@ -1,92 +1,57 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8"/>
-  <meta
-    name="viewport"
-    content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"/>
-  <title>Web AR Shoe Try-On</title>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<title>DIY Foot Try-On (TF.js + Three.js)</title>
 
-  <!-- A-Frame -->
-  <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
-  <!-- AR.js for A-Frame (marker-based AR) -->
-  <script src="https://raw.githack.com/AR-js-org/AR.js/3.4.7/aframe/build/aframe-ar-nft.js"></script>
+<!-- ====== Three.js + GLTFLoader ====== -->
+<script src="https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.152.2/examples/js/loaders/GLTFLoader.js"></script>
 
-  <style>
-    html, body { margin:0; height:100%; background:#000; font-family: system-ui, sans-serif; }
-    #hud {
-      position: fixed; left: 0; right: 0; bottom: 0; padding: 12px 14px;
-      color: #fff; background: linear-gradient(to top, rgba(0,0,0,.55), rgba(0,0,0,0));
-      text-align: center; font-size: 14px; pointer-events: none;
-    }
-    #topbar {
-      position: fixed; top: 10px; left: 10px; right: 10px;
-      display: flex; justify-content: space-between; gap: 8px; pointer-events: none;
-    }
-    .btn {
-      pointer-events: auto; padding: 8px 12px; border-radius: 10px;
-      background: rgba(0,0,0,.5); color:#fff; border: 1px solid rgba(255,255,255,.25);
-      font: 14px/1.2 system-ui;
-    }
-    #toast {
-      position: fixed; left: 50%; transform: translateX(-50%);
-      top: 16px; background: rgba(0,0,0,.7); color:#fff; border-radius: 10px;
-      padding: 8px 12px; font-size: 14px; display:none;
-    }
-    #loader {
-      position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%);
-      color: #fff; background: rgba(0,0,0,.6); padding: 8px 12px; border-radius: 8px;
-      font-size: 14px; display:none;
-    }
-    .hidden { display: none !important; }
-  </style>
+<!-- ====== TensorFlow.js + Pose Detection (BlazePose via MediaPipe) ====== -->
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/pose-detection@3.0.0/dist/pose-detection.min.js"></script>
+<!-- MediaPipe (runtime files for BlazePose) -->
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404"></script>
+
+<style>
+  html, body { margin:0; height:100%; background:#000; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
+  /* Video behind, WebGL on top */
+  #videoEl {
+    position: fixed; inset: 0; width: 100vw; height: 100vh; object-fit: cover;
+    transform: scaleX(-1);  /* mirror so it feels natural */
+    z-index: 0;
+  }
+  #webgl { position: fixed; inset: 0; z-index: 1; pointer-events: none; }
+  #ui { position: fixed; top: 10px; left: 10px; right: 10px; z-index: 2; display:flex; gap:8px; justify-content:space-between; }
+  .btn { pointer-events:auto; padding:8px 12px; border-radius:10px; background:rgba(0,0,0,.55); color:#fff; border:1px solid rgba(255,255,255,.25); }
+  #hud { position: fixed; left:0; right:0; bottom:14px; z-index:2; text-align:center; color:#fff; font-size:14px; text-shadow: 0 1px 2px rgba(0,0,0,.6); }
+  #toast { position: fixed; top: 14px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,.7); color:#fff; padding:8px 12px; border-radius:10px; z-index:3; display:none; }
+  #loader { position: fixed; left:50%; top:50%; transform: translate(-50%, -50%); color:#fff; background: rgba(0,0,0,.6); padding:10px 14px; border-radius:10px; z-index:3; display:none; }
+  /* gesture layer */
+  #touchLayer { position:fixed; inset:0; z-index: 3; pointer-events:auto; }
+</style>
 </head>
 <body>
-<div id="topbar">
+<video id="videoEl" autoplay playsinline muted></video>
+<canvas id="webgl"></canvas>
+
+<div id="ui">
   <button class="btn" onclick="location.href='about:blank'">Close</button>
-  <button class="btn" onclick="resetModel()">Reset</button>
+  <div style="display:flex; gap:8px;">
+    <button class="btn" onclick="resetModel()">Reset</button>
+    <button class="btn" onclick="toggleFoot()">Foot: <span id="footLabel">auto</span></button>
+  </div>
 </div>
+<div id="hud">Move your phone so your feet are visible. Pinch to scale and twist to rotate. (Experimental)</div>
 <div id="toast"></div>
 <div id="loader">Loading model…</div>
-<div id="hud">
-  Point your camera at the printed marker. Use two fingers to pinch (scale) and twist (rotate).
-</div>
-
-<!-- SCENE -->
-<a-scene
-  embedded
-  renderer="antialias: true; physicallyCorrectLights: true; colorManagement: true"
-  vr-mode-ui="enabled: false"
-  device-orientation-permission-ui="enabled: false"
-  arjs="trackingMethod: best; sourceType: webcam; debugUIEnabled: false;">
-
-  <!-- Camera -->
-  <a-entity camera></a-entity>
-
-  <!-- Marker anchor: replace URL if you use your own marker -->
-  <a-marker type="pattern" url="assets/marker.patt" id="marker">
-    <!-- Lights -->
-    <a-entity light="type: ambient; intensity: 0.6"></a-entity>
-    <a-entity light="type: directional; intensity: 1" position="0 2 1"></a-entity>
-
-    <!-- Your GLB goes here -->
-    <a-entity id="shoe"
-      position="0 0 0"
-      rotation="-90 0 0"
-      scale="1 1 1">
-    </a-entity>
-
-    <!-- Optional ground for visual reference -->
-    <a-entity geometry="primitive: circle; radius: 0.6" rotation="-90 0 0"
-              material="color: #000; opacity: 0.08"></a-entity>
-  </a-marker>
-
-  <!-- Keep scene alive even if marker isn’t visible -->
-  <a-entity arjs-anchor></a-entity>
-</a-scene>
+<div id="touchLayer"></div>
 
 <script>
-  // --------- Helpers ---------
+(async function () {
+  // ---------- Utilities ----------
   const $ = sel => document.querySelector(sel);
   const toast = (msg, ms=1800) => {
     const t = $('#toast'); t.textContent = msg; t.style.display = 'block';
@@ -94,88 +59,198 @@
     window.__toastTimer = setTimeout(()=> t.style.display = 'none', ms);
   };
 
-  // --------- Load model URL from ?model=... or fallback ---------
+  // Model URL from ?model=
   const params = new URLSearchParams(location.search);
-  const modelURL = params.get('model') ||
+  const MODEL_URL = params.get('model') ||
     'https://firebasestorage.googleapis.com/v0/b/trial-50e43.firebasestorage.app/o/models%2Fshoe_1757851728914.glb?alt=media&token=f384d0bb-91c2-4d07-ac36-354e51db46f1';
 
-  const shoe = document.getElementById('shoe');
-  const loader = document.getElementById('loader');
+  // ---------- Camera ----------
+  const video = $('#videoEl');
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } },
+      audio: false
+    });
+    video.srcObject = stream;
+    await video.play();
+  } catch (e) {
+    alert('Camera permission needed. Open over HTTPS and allow camera.');
+    throw e;
+  }
 
-  // Set GLB once A-Frame entity is ready
-  shoe.addEventListener('model-error', e => {
+  // ---------- Three.js ----------
+  const renderer = new THREE.WebGLRenderer({ canvas: $('#webgl'), alpha: true, antialias: true });
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(50, innerWidth / innerHeight, 0.01, 100);
+  camera.position.set(0, 0, 2.2); // fixed Z; we’ll fake scale
+  renderer.setSize(innerWidth, innerHeight);
+  window.addEventListener('resize', () => {
+    camera.aspect = innerWidth / innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(innerWidth, innerHeight);
+  });
+
+  // Lights
+  scene.add(new THREE.AmbientLight(0xffffff, 0.75));
+  const dir = new THREE.DirectionalLight(0xffffff, 0.9);
+  dir.position.set(0.5, 1, 1);
+  scene.add(dir);
+
+  // Shoe holder
+  const holder = new THREE.Group();
+  scene.add(holder);
+
+  // Load GLB
+  $('#loader').style.display = 'block';
+  const loader = new THREE.GLTFLoader();
+  let shoe;
+  try {
+    const gltf = await loader.loadAsync(MODEL_URL);
+    shoe = gltf.scene;
+    // Initial orientation: most shoes are Z-forward; rotate so top faces camera
+    shoe.rotation.set(-Math.PI/2, 0, 0);
+    shoe.scale.set(0.35, 0.35, 0.35); // starting guess; will be scaled dynamically
+    holder.add(shoe);
+    $('#loader').style.display = 'none';
+    toast('Model loaded');
+  } catch (e) {
+    $('#loader').style.display = 'none';
     console.error(e);
-    toast('Failed to load model.');
-    loader.classList.add('hidden');
-  });
+    toast('Failed to load model');
+  }
 
-  // Dynamically assign glTF src
-  shoe.setAttribute('gltf-model', `url(${modelURL})`);
+  // ---------- Pose Detector (BlazePose, mediapipe runtime) ----------
+  const detector = await poseDetection.createDetector(
+    poseDetection.SupportedModels.BlazePose,
+    {
+      runtime: 'mediapipe',
+      modelType: 'full',
+      solutionPath: 'https://cdn.jsdelivr.net/npm/@mediapipe/pose'
+    }
+  );
 
-  // Show loader until the mesh is ready
-  loader.style.display = 'block';
-  shoe.addEventListener('model-loaded', () => {
-    loader.classList.add('hidden');
-    toast('Model loaded. Aim at the marker.');
-  });
+  // Helper: pick best visible foot landmarks
+  let forceFoot = 'auto'; // 'left' | 'right' | 'auto'
+  function chooseFoot(kps) {
+    const lAnk = kps.find(k => k.name === 'left_ankle');
+    const rAnk = kps.find(k => k.name === 'right_ankle');
+    const lToe = kps.find(k => k.name === 'left_foot_index');
+    const rToe = kps.find(k => k.name === 'right_foot_index');
+    const lKnee = kps.find(k => k.name === 'left_knee');
+    const rKnee = kps.find(k => k.name === 'right_knee');
 
-  // --------- Two-finger gestures (pinch scale + twist rotate) ---------
-  let start = null;
-  let baseScale = 1;
-  let baseRotY = 0;
+    if (forceFoot === 'left') return {ank:lAnk, toe:lToe, knee:lKnee};
+    if (forceFoot === 'right') return {ank:rAnk, toe:rToe, knee:rKnee};
 
-  const getTouches = e => [...e.touches].map(t => ({x:t.clientX, y:t.clientY}));
-  const dist = (a,b) => Math.hypot(b.x-a.x, b.y-a.y);
-  const ang  = (a,b) => Math.atan2(b.y-a.y, b.x-a.x);
+    // auto: pick the side with higher visibility
+    const lVis = ((lAnk?.score||0)+(lToe?.score||0))/2;
+    const rVis = ((rAnk?.score||0)+(rToe?.score||0))/2;
+    return (rVis>lVis) ? {ank:rAnk, toe:rToe, knee:rKnee} : {ank:lAnk, toe:lToe, knee:lKnee};
+  }
 
-  function onTouchStart(e){
-    if(e.touches.length === 2){
+  // Gesture controls (pinch scale, twist rotate)
+  let gestureStart = null;
+  const touchLayer = $('#touchLayer');
+  touchLayer.addEventListener('touchstart', (e) => {
+    if (e.touches.length === 2) {
       e.preventDefault();
-      const [p1, p2] = getTouches(e);
-      start = {
-        d: dist(p1,p2),
-        a: ang(p1,p2),
-        scale: shoe.object3D.scale.x,
-        rotY: shoe.object3D.rotation.y
+      const [a,b] = e.touches;
+      gestureStart = {
+        d: Math.hypot(b.clientX - a.clientX, b.clientY - a.clientY),
+        a: Math.atan2(b.clientY - a.clientY, b.clientX - a.clientX),
+        scale: holder.scale.x,
+        rotY: holder.rotation.y
       };
     }
-  }
-
-  function onTouchMove(e){
-    if(e.touches.length === 2 && start){
+  }, {passive:false});
+  touchLayer.addEventListener('touchmove', (e) => {
+    if (e.touches.length === 2 && gestureStart) {
       e.preventDefault();
-      const [p1, p2] = getTouches(e);
-      const d = dist(p1,p2);
-      const a = ang(p1,p2);
-
-      // scale
-      const s = Math.max(0.2, Math.min(3, start.scale * (d / start.d)));
-      shoe.object3D.scale.set(s, s, s);
-
-      // rotate (around Y)
-      shoe.object3D.rotation.y = start.rotY + (a - start.a);
+      const [a,b] = e.touches;
+      const d = Math.hypot(b.clientX - a.clientX, b.clientY - a.clientY);
+      const a2 = Math.atan2(b.clientY - a.clientY, b.clientX - a.clientX);
+      const s = Math.min(3, Math.max(0.15, gestureStart.scale * (d / gestureStart.d)));
+      holder.scale.set(s,s,s);
+      holder.rotation.y = gestureStart.rotY + (a2 - gestureStart.a);
     }
+  }, {passive:false});
+  touchLayer.addEventListener('touchend', () => gestureStart = null, {passive:true});
+
+  // Smoothing helpers
+  const smooth = (curr, target, alpha) => curr + (target - curr) * alpha;
+  let smX=0, smY=0, smRot=0, smScale=0.35;
+
+  // Main loop
+  async function tick() {
+    // Run pose every N frames to save CPU
+    let poses = [];
+    try {
+      poses = await detector.estimatePoses(video, { flipHorizontal: true });
+    } catch (e) {
+      // ignore transient errors
+    }
+
+    if (poses[0]?.keypoints) {
+      const {ank, toe, knee} = chooseFoot(poses[0].keypoints);
+      if (ank && toe && knee && ank.score>0.3 && toe.score>0.3) {
+        // 2D coordinates normalized [0..videoWidth/Height]
+        const vw = video.videoWidth || innerWidth;
+        const vh = video.videoHeight || innerHeight;
+
+        // center between ankle & toe (rough foot center)
+        const cx = (ank.x + toe.x) / 2;
+        const cy = (ank.y + toe.y) / 2;
+
+        // angle in screen plane (x right, y down) -> convert to Y rotation
+        const angle = Math.atan2(toe.y - ank.y, toe.x - ank.x);
+
+        // crude depth/scale proxy: knee-ankle distance in pixels
+        const leg = Math.hypot((knee?.x||ank.x) - ank.x, (knee?.y||ank.y) - ank.y); // px
+        // map leg px to scale (tune constants for your device)
+        const targetScale = Math.min(1.8, Math.max(0.18, 140 / (leg+1)));
+
+        // map 2D screen to [-1..1] then to camera plane @ fixed Z
+        const nx = (cx / vw) * 2 - 1;
+        const ny = -((cy / vh) * 2 - 1);
+
+        // place holder in front of camera; convert NDC to world at z≈0
+        // simple approach: position in camera space using tangent of FOV
+        const z = 0; // near the origin; camera is at z=2.2
+        const vFov = THREE.MathUtils.degToRad(camera.fov);
+        const h = Math.tan(vFov/2) * Math.abs(camera.position.z - z) * 2;
+        const w = h * camera.aspect;
+        const targetX = nx * (w/2);
+        const targetY = ny * (h/2);
+
+        // smooth & apply
+        smX = smooth(smX, targetX, 0.35);
+        smY = smooth(smY, targetY - 0.05, 0.35); // slight offset down
+        smRot = smooth(smRot, -angle + Math.PI/2, 0.25); // heuristic
+        smScale = smooth(smScale, targetScale, 0.25);
+
+        holder.position.set(smX, smY, 0);
+        holder.rotation.set(-Math.PI/2, smRot, 0);
+        holder.scale.set(smScale, smScale, smScale);
+      }
+    }
+
+    renderer.render(scene, camera);
+    requestAnimationFrame(tick);
   }
+  tick();
 
-  function onTouchEnd(e){
-    if(e.touches.length < 2) start = null;
-  }
-
-  // Attach to canvas once available
-  const scene = document.querySelector('a-scene');
-  scene.addEventListener('loaded', () => {
-    const canvas = scene.canvas;
-    canvas.addEventListener('touchstart', onTouchStart, {passive:false});
-    canvas.addEventListener('touchmove',  onTouchMove,  {passive:false});
-    canvas.addEventListener('touchend',   onTouchEnd,   {passive:false});
-  });
-
-  // --------- Reset button ---------
+  // UI helpers
   window.resetModel = () => {
-    shoe.object3D.scale.set(1,1,1);
-    shoe.object3D.rotation.set(-Math.PI/2, 0, 0);
-    toast('Model reset.');
+    holder.position.set(0,0,0);
+    holder.rotation.set(-Math.PI/2, 0, 0);
+    holder.scale.set(0.35,0.35,0.35);
+    toast('Model reset');
   };
+  window.toggleFoot = () => {
+    forceFoot = (forceFoot === 'auto') ? 'left' : (forceFoot === 'left' ? 'right' : 'auto');
+    $('#footLabel').textContent = forceFoot;
+  };
+})();
 </script>
 </body>
 </html>
