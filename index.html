@@ -1,77 +1,36 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <title>WebAR Try-On (AR.js + A-Frame)</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <head>
+    <meta charset="UTF-8" />
+    <title>WebAR Try-On</title>
 
-  <!-- A-Frame (1.4.1 is very stable with AR.js) -->
-  <script src="https://aframe.io/releases/1.4.1/aframe.min.js" crossorigin="anonymous"></script>
+    <!-- A-Frame -->
+    <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+    <!-- AR.js with A-Frame -->
+    <script src="https://cdn.rawgit.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
 
-  <!-- AR.js (use githack CDN; jsDelivr sometimes blocks aframe build) -->
-  <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js" crossorigin="anonymous"></script>
+    <style>
+      body {
+        margin: 0;
+        overflow: hidden;
+      }
+    </style>
+  </head>
+  <body>
+    <a-scene
+      embedded
+      vr-mode-ui="enabled: false"
+      renderer="antialias: true; alpha: true; physicallyCorrectLights: true; colorManagement: true"
+      arjs="sourceType: webcam; debugUIEnabled: true; detectionMode: mono; facingMode: environment;"
+    >
+      <!-- Marker (HIRO pattern) -->
+      <a-marker preset="hiro">
+        <!-- Red cube (test object) -->
+        <a-box position="0 0.5 0" material="color: red;"></a-box>
+      </a-marker>
 
-  <style>
-    html,body { margin:0; height:100%; background:#000; overflow:hidden; }
-    .hud {
-      position: fixed; left: 8px; right: 8px; top: 8px; z-index: 10;
-      padding: 6px 10px; background: rgba(0,0,0,.7); color:#0f0;
-      font: 12px/1.4 monospace; border-radius: 8px; white-space: pre-wrap;
-    }
-    .btn {
-      position: fixed; right: 12px; bottom: 14px; z-index: 10;
-      background: #6e57ff; color: #fff; border: 0; border-radius: 12px;
-      padding: 10px 14px; font: 14px system-ui;
-    }
-  </style>
-</head>
-<body>
-  <div id="hud" class="hud">Booting…</div>
-  <button class="btn" onclick="rotateCube()">Rotate ↻</button>
-
-  <!-- The AR scene -->
-  <a-scene
-    embedded
-    vr-mode-ui="enabled: false"
-    renderer="antialias: true; alpha: true; physicallyCorrectLights: true; colorManagement: true"
-    arjs="sourceType: webcam; debugUIEnabled: true; detectionMode: mono; facingMode: environment;"
-  >
-    <!-- Use the built-in HIRO marker -->
-    <a-marker preset="hiro">
-      <!-- TEST OBJECT: red cube. We will swap to your GLB once this works -->
-      <a-box id="testbox" position="0 0.5 0" material="color: red;"></a-box>
-
-      <!-- Some light so materials don’t look too dark -->
-      <a-entity light="type:ambient; intensity:0.9"></a-entity>
-      <a-entity light="type:directional; intensity:0.9" position="1 2 1"></a-entity>
-    </a-marker>
-
-    <!-- The AR.js-controlled camera -->
-    <a-entity camera></a-entity>
-  </a-scene>
-
-  <script>
-    const hud = document.getElementById('hud');
-    const log = (m) => { hud.textContent = (hud.textContent ? hud.textContent + '\n' : '') + m; };
-
-    // Basic sanity checks so we know scripts really loaded:
-    (function sanityChecks(){
-      log('Sanity: AFRAME = ' + (typeof AFRAME));
-      log('Sanity: THREEx (AR.js) = ' + (typeof window.THREEx));
-    })();
-
-    // Report camera permission events (AR.js debug UI shows more too)
-    document.addEventListener('arjs-video-loaded', () => log('Event: arjs-video-loaded (camera stream started)'));
-    document.addEventListener('arjs-nft-init-data', () => log('Event: arjs-nft-init-data'));
-    document.addEventListener('camera-init', () => log('Event: camera-init'));
-    document.addEventListener('camera-error', e => log('Event: camera-error: ' + JSON.stringify(e && e.detail)));
-
-    function rotateCube(){
-      const box = document.querySelector('#testbox');
-      if (!box) return;
-      const r = box.getAttribute('rotation');
-      box.setAttribute('rotation', {x: r.x, y: (r.y + 15) % 360, z: r.z});
-    }
-  </script>
-</body>
+      <!-- Required AR.js camera -->
+      <a-entity camera></a-entity>
+    </a-scene>
+  </body>
 </html>
