@@ -1,67 +1,77 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <title>WebAR Try-On</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+<head>
+  <meta charset="UTF-8" />
+  <title>WebAR Try-On (AR.js + A-Frame)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <!-- A-Frame -->
-    <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
-    <!-- AR.js with A-Frame (CDN, HTTPS) -->
-    <script src="https://cdn.jsdelivr.net/npm/ar.js@3.4.5/aframe/build/aframe-ar.js"></script>
+  <!-- A-Frame (1.4.1 is very stable with AR.js) -->
+  <script src="https://aframe.io/releases/1.4.1/aframe.min.js" crossorigin="anonymous"></script>
 
-    <style>
-      body { margin: 0; overflow: hidden; }
-      .hud {
-        position: fixed; left: 8px; right: 8px; top: 8px; z-index: 10000;
-        padding: 6px 10px; background: rgba(0,0,0,.65); color: #0f0;
-        font: 12px/1.4 monospace; border-radius: 8px;
-      }
-      .btn {
-        position: fixed; right: 10px; bottom: 12px; z-index: 10000;
-        background: #6e57ff; color: #fff; border: 0; border-radius: 12px;
-        padding: 10px 14px; font: 14px system-ui;
-      }
-    </style>
-  </head>
-  <body>
-    <div class="hud">Point your camera at a HIRO marker. Tap “Rotate” if needed.</div>
-    <button class="btn" onclick="rotateShoe()">Rotate ↻</button>
+  <!-- AR.js (use githack CDN; jsDelivr sometimes blocks aframe build) -->
+  <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js" crossorigin="anonymous"></script>
 
-    <a-scene
-      embedded
-      vr-mode-ui="enabled: false"
-      renderer="antialias: true; alpha: true; physicallyCorrectLights: true; colorManagement: true"
-      arjs="sourceType: webcam; debugUIEnabled: false; detectionMode: mono; facingMode: environment;"
-    >
-      <!-- Preload your shoe model -->
-      <a-assets timeout="20000">
-        <a-asset-item id="shoeModel" src="./shoe_model.glb"></a-asset-item>
-      </a-assets>
+  <style>
+    html,body { margin:0; height:100%; background:#000; overflow:hidden; }
+    .hud {
+      position: fixed; left: 8px; right: 8px; top: 8px; z-index: 10;
+      padding: 6px 10px; background: rgba(0,0,0,.7); color:#0f0;
+      font: 12px/1.4 monospace; border-radius: 8px; white-space: pre-wrap;
+    }
+    .btn {
+      position: fixed; right: 12px; bottom: 14px; z-index: 10;
+      background: #6e57ff; color: #fff; border: 0; border-radius: 12px;
+      padding: 10px 14px; font: 14px system-ui;
+    }
+  </style>
+</head>
+<body>
+  <div id="hud" class="hud">Booting…</div>
+  <button class="btn" onclick="rotateCube()">Rotate ↻</button>
 
-      <!-- Built-in HIRO marker (no patt file needed) -->
-      <a-marker preset="hiro">
-        <!-- Your shoe model -->
-        <a-entity
-          id="shoe"
-          gltf-model="#shoeModel"
-          position="0 0 0"
-          rotation="-90 0 0"   <!-- lay flat on marker -->
-          scale="0.6 0.6 0.6"> <!-- adjust as needed -->
-        </a-entity>
+  <!-- The AR scene -->
+  <a-scene
+    embedded
+    vr-mode-ui="enabled: false"
+    renderer="antialias: true; alpha: true; physicallyCorrectLights: true; colorManagement: true"
+    arjs="sourceType: webcam; debugUIEnabled: true; detectionMode: mono; facingMode: environment;"
+  >
+    <!-- Use the built-in HIRO marker -->
+    <a-marker preset="hiro">
+      <!-- TEST OBJECT: red cube. We will swap to your GLB once this works -->
+      <a-box id="testbox" position="0 0.5 0" material="color: red;"></a-box>
 
-        <!-- Lights help PBR materials look better -->
-        <a-entity light="type:ambient; intensity:0.8"></a-entity>
-        <a-entity light="type:directional; intensity:0.9" position="1 2 1"></a-entity>
-      </a-marker>
+      <!-- Some light so materials don’t look too dark -->
+      <a-entity light="type:ambient; intensity:0.9"></a-entity>
+      <a-entity light="type:directional; intensity:0.9" position="1 2 1"></a-entity>
+    </a-marker>
 
-      <!-- Required AR.js camera -->
-      <a-entity camera></a-entity>
-    </a-scene>
+    <!-- The AR.js-controlled camera -->
+    <a-entity camera></a-entity>
+  </a-scene>
 
-    <script>
-      function rotateShoe() {
-        const e = document.querySelector('#shoe');
-        if (!e) return;
-        const rot = e.getAttribute('rotation'); // {x,y,z}
-        e.setAttribute('rotation', { x: rot.x, y: (rot.y + 15) % 360, z: rot.z });
+  <script>
+    const hud = document.getElementById('hud');
+    const log = (m) => { hud.textContent = (hud.textContent ? hud.textContent + '\n' : '') + m; };
+
+    // Basic sanity checks so we know scripts really loaded:
+    (function sanityChecks(){
+      log('Sanity: AFRAME = ' + (typeof AFRAME));
+      log('Sanity: THREEx (AR.js) = ' + (typeof window.THREEx));
+    })();
+
+    // Report camera permission events (AR.js debug UI shows more too)
+    document.addEventListener('arjs-video-loaded', () => log('Event: arjs-video-loaded (camera stream started)'));
+    document.addEventListener('arjs-nft-init-data', () => log('Event: arjs-nft-init-data'));
+    document.addEventListener('camera-init', () => log('Event: camera-init'));
+    document.addEventListener('camera-error', e => log('Event: camera-error: ' + JSON.stringify(e && e.detail)));
+
+    function rotateCube(){
+      const box = document.querySelector('#testbox');
+      if (!box) return;
+      const r = box.getAttribute('rotation');
+      box.setAttribute('rotation', {x: r.x, y: (r.y + 15) % 360, z: r.z});
+    }
+  </script>
+</body>
+</html>
