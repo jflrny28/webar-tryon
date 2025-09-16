@@ -10,9 +10,15 @@
     <script src="https://cdn.rawgit.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
 
     <style>
-      body {
-        margin: 0;
-        overflow: hidden;
+      body { margin: 0; overflow: hidden; }
+      .ui {
+        position: fixed; bottom: 12px; left: 50%; transform: translateX(-50%);
+        display: flex; gap: 10px; z-index: 10;
+      }
+      button {
+        padding: 10px 14px; font-size: 14px;
+        border: none; border-radius: 8px;
+        background: #6e57ff; color: #fff;
       }
     </style>
   </head>
@@ -21,16 +27,48 @@
       embedded
       vr-mode-ui="enabled: false"
       renderer="antialias: true; alpha: true; physicallyCorrectLights: true; colorManagement: true"
-      arjs="sourceType: webcam; debugUIEnabled: true; detectionMode: mono; facingMode: environment;"
+      arjs="sourceType: webcam; debugUIEnabled: false; detectionMode: mono; facingMode: environment;"
     >
       <!-- Marker (HIRO pattern) -->
       <a-marker preset="hiro">
-        <!-- Red cube (test object) -->
-        <a-box position="0 0.5 0" material="color: red;"></a-box>
+        <!-- Load your shoe GLB -->
+        <a-entity id="shoeModel"
+          gltf-model="./shoe_model.glb"
+          scale="0.4 0.4 0.4"
+          rotation="-90 0 0"
+          position="0 0 0"
+        ></a-entity>
+
+        <!-- Lights -->
+        <a-entity light="type: ambient; intensity: 1"></a-entity>
+        <a-entity light="type: directional; intensity: 0.6" position="0 2 1"></a-entity>
       </a-marker>
 
       <!-- Required AR.js camera -->
       <a-entity camera></a-entity>
     </a-scene>
+
+    <!-- Simple UI for testing -->
+    <div class="ui">
+      <button onclick="scaleUp()">Scale +</button>
+      <button onclick="scaleDown()">Scale -</button>
+      <button onclick="rotate()">Rotate</button>
+    </div>
+
+    <script>
+      const shoe = document.getElementById('shoeModel');
+      function scaleUp(){
+        const s = shoe.getAttribute('scale');
+        shoe.setAttribute('scale', {x: s.x*1.1, y: s.y*1.1, z: s.z*1.1});
+      }
+      function scaleDown(){
+        const s = shoe.getAttribute('scale');
+        shoe.setAttribute('scale', {x: s.x*0.9, y: s.y*0.9, z: s.z*0.9});
+      }
+      function rotate(){
+        const r = shoe.getAttribute('rotation');
+        shoe.setAttribute('rotation', {x: r.x, y: (r.y+15)%360, z: r.z});
+      }
+    </script>
   </body>
 </html>
