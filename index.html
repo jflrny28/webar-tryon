@@ -4,82 +4,103 @@
     <meta charset="UTF-8" />
     <title>WebAR Try-On</title>
 
-    <!-- A-Frame + AR.js -->
+    <!-- A-Frame -->
     <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js/aframe/build/aframe-ar.min.js"></script>
+    <!-- AR.js with A-Frame -->
+    <script src="https://cdn.rawgit.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
 
     <style>
-      html, body { margin: 0; height: 100%; overflow: hidden; }
-      .log {
-        position: fixed; top: 6px; left: 6px; right: 6px;
-        background: rgba(0,0,0,0.6); color: #57ff57;
-        font: 14px monospace; padding: 6px; border-radius: 4px;
-        z-index: 10;
+      body {
+        margin: 0;
+        overflow: hidden;
       }
-      .ui {
-        position: fixed; bottom: 12px; left: 50%; transform: translateX(-50%);
-        display: flex; gap: 8px; z-index: 10;
+      #overlay {
+        position: fixed;
+        top: 10px;
+        left: 10px;
+        font-family: monospace;
+        color: lime;
+        background: rgba(0, 0, 0, 0.6);
+        padding: 5px 10px;
+        border-radius: 4px;
       }
-      button {
-        background: #6e57ff; color: #fff; border: none;
-        padding: 10px 14px; border-radius: 6px; font-size: 14px;
+      #controls {
+        position: fixed;
+        bottom: 20px;
+        width: 100%;
+        text-align: center;
+      }
+      #controls button {
+        padding: 10px 20px;
+        margin: 0 5px;
+        font-size: 16px;
+        border: none;
+        border-radius: 6px;
+        background: #7c4dff;
+        color: white;
       }
     </style>
   </head>
   <body>
-    <div id="log" class="log">Booting AR.js…</div>
+    <div id="overlay">Model loading…</div>
 
     <a-scene
       embedded
       vr-mode-ui="enabled: false"
-      renderer="antialias: true; alpha: true"
+      renderer="antialias: true; alpha: true; physicallyCorrectLights: true; colorManagement: true"
       arjs="sourceType: webcam; debugUIEnabled: false; detectionMode: mono; facingMode: environment;"
     >
-      <!-- HIRO marker -->
+      <!-- Marker -->
       <a-marker preset="hiro">
-        <a-entity id="shoe"></a-entity>
+        <!-- Shoe model with smaller default scale -->
+        <a-entity
+          id="shoe"
+          gltf-model="./shoe_model.glb"
+          position="0 0 0"
+          rotation="0 0 0"
+          scale="0.3 0.3 0.3"
+        ></a-entity>
       </a-marker>
 
       <!-- Required AR.js camera -->
       <a-entity camera></a-entity>
     </a-scene>
 
-    <div class="ui">
+    <div id="controls">
       <button onclick="scaleUp()">Scale+</button>
       <button onclick="scaleDown()">Scale-</button>
       <button onclick="rotate()">Rotate</button>
     </div>
 
     <script>
-      const $log = document.getElementById('log');
-      function log(msg){ $log.textContent = msg; }
+      const overlay = document.getElementById("overlay");
+      const shoe = document.getElementById("shoe");
 
-      const url = new URL(location.href);
-      const modelUrl = url.searchParams.get('modelUrl') || './shoe_model.glb';
-      const shoe = document.getElementById('shoe');
-
-      window.addEventListener('load', () => {
-        log('Loading model…');
-        shoe.setAttribute('gltf-model', modelUrl);
-        shoe.setAttribute('scale', '0.3 0.3 0.3');
-        shoe.setAttribute('rotation', '-90 0 0');
-        shoe.setAttribute('position', '0 0 0');
-
-        shoe.addEventListener('model-loaded', () => log('Model loaded ✔'));
-        shoe.addEventListener('model-error', e => log('Model error ❌ ' + JSON.stringify(e.detail)));
+      shoe.addEventListener("model-loaded", () => {
+        overlay.innerText = "Model loaded ✔";
       });
 
-      function scaleUp(){
-        const s = shoe.getAttribute('scale');
-        shoe.setAttribute('scale', {x: s.x*1.1, y: s.y*1.1, z: s.z*1.1});
+      function scaleUp() {
+        let s = shoe.getAttribute("scale");
+        shoe.setAttribute("scale", {
+          x: s.x * 1.1,
+          y: s.y * 1.1,
+          z: s.z * 1.1,
+        });
       }
-      function scaleDown(){
-        const s = shoe.getAttribute('scale');
-        shoe.setAttribute('scale', {x: s.x*0.9, y: s.y*0.9, z: s.z*0.9});
+
+      function scaleDown() {
+        let s = shoe.getAttribute("scale");
+        shoe.setAttribute("scale", {
+          x: s.x * 0.9,
+          y: s.y * 0.9,
+          z: s.z * 0.9,
+        });
       }
-      function rotate(){
-        const r = shoe.getAttribute('rotation');
-        shoe.setAttribute('rotation', {x: r.x, y: (r.y+15)%360, z: r.z});
+
+      function rotate() {
+        let r = shoe.getAttribute("rotation");
+        shoe.setAttribute("rotation", { x: r.x, y: r.y + 15, z: r.z });
       }
     </script>
   </body>
